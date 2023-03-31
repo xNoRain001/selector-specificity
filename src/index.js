@@ -4,42 +4,72 @@ const getNodes = s => {
         // div> span .foo + .bar.baz ~ .qux a[ quux= corge ]
         .replace(/\s{2,}/g, () => ' ')
         // div>span .foo +.bar.baz ~.qux a[quux=corge ]
-        .replace(/([[=~>+])\s/g, (_, $1) => $1)
+        .replace(/([,[=~>+])\s/g, (_, $1) => $1)
         // div>span .foo+.bar.baz~.qux a[quux=corge]
-        .replace(/\s([=\]~>+])/g, (_, $1) => $1)
+        .replace(/\s(,[=\]~>+])/g, (_, $1) => $1)
 
   const nodeStrategies = {
-    '.': (value) => ({
+    '.': (name) => ({
       type: 'class',
-      value,
+      name,
       specificity: 10
     }),
 
-    ':': (value) => {
-      // TODO: :not ::first-line
-      return {
-        type: 'pseudo-class',
-        value,
-        specificity: 10
+    ':': (exp) => {
+      if (exp[0] === ':') {
+        return {
+          type: 'pseudo-element',
+          name: exp.slice(1),
+          specificity: 0
+        }
       }
+
+      const firstBracketIndex = exp.indexOf('(')
+      const name = exp.slice(0, firstBracketIndex)
+      const isNegationPseudoClass = name === 'not'
+      let specificity = isNegationPseudoClass ? 0 : 10
+      const node = {
+        type: 'pseudo-class',
+        name,
+        innerNodes: [],
+        specificity
+      }
+      const segments = exp.slice(name.length + 1, -1).split(',')
+      
+      for (let i = 0, l = segments.length; i < l; i++) {
+        const nodes = getNodes(segments[i])
+        node.innerNodes.push(nodes)
+
+        if (isNegationPseudoClass) {
+          for (let i = 0, l = nodes.length; i < l; i++) {
+           specificity = Math.max(specificity, nodes[i].specificity)
+          }
+        } 
+
+        node.specificity = specificity
+      }
+      
+      return node
     },
 
     '[': (pair) => {
-      const [attr, value] = pair.slice(0, -1).split('=')
+      const [name, value] = pair.slice(0, -1).split('=')
 
       return {
         type: 'attribute',
-        attr,
+        name,
         value,
         specificity: 10
       }
     },
 
-    '#': (value) => ({
+    '#': (name) => ({
       type: 'id',
-      value,
+      name,
       specificity: 100
     }),
+
+    ',': () => '',
 
     '*': () => ({ type: 'universal'} ),
 
@@ -52,46 +82,77 @@ const getNodes = s => {
     ' ': () => ({ type: 'descendant' }),
   }
 
-  const getSelectorValue = (s, isElm, isPseudoClass) => {
-    let value = ''
-    const startIndex = isElm ? 0 : 1
+  const getSelectorname = (s, isPseudoClass) => {
+    if (isPseudoClass) {
+      if (s[0] === ':') {
+        return s
+      }
 
-    for (let i = startIndex, l = s.length; i < l; i++) {
-      if (/[:*.>+~\s\[]/.test(s[i])) {
-        value = s.slice(startIndex, i)
+      const firstBracketIndex = s.indexOf('(')
+      let counter = 1
+      let lastBracketIndex = 0
+
+      for (let i = firstBracketIndex + 1, l = s.length; i < l; i++) {
+        if (s[i] === '(') {
+          counter++
+        } else if (s[i] === ')') {
+          counter--
+        } 
         
+        if (counter === 0) {
+          lastBracketIndex = i
+
+          break
+        }
+      }
+    
+      return s.slice(0, lastBracketIndex + 1)
+    }
+
+    let name = ''
+    const regexp = /[,:*.>+~\s\[]/
+
+    for (let i = 0, l = s.length; i < l; i++) {
+      if (regexp.test(s[i])) {
+        name = s.slice(0, i)
+
         break
       }
     }
 
-    return value || s.slice(startIndex)
+    return name || s.slice(0)
   }
 
   const nodes = []
 
   while (s) {
     const prefix = s[0]
-    
-    if (/[*>+~\s]/.test(prefix)) {
-      nodes.push(nodeStrategies[prefix]())
+
+    if (/[,*>+~\s]/.test(prefix)) {
+      const node = nodeStrategies[prefix]()
+      node && nodes.push(node)
       s = s.slice(1)
     } else {
       const strategy = nodeStrategies[prefix]
       const isElm = /[.:#\[]/.test(prefix) ? false : true
+
+      s = s.slice(isElm ? 0 : 1)
+
       const isPseudoClass = prefix === ':'
-      const value = getSelectorValue(s, isElm, isPseudoClass)
+      const name = getSelectorname(s, isPseudoClass)
 
       if (strategy) {
-        nodes.push(strategy(value) )
+        const node = strategy(name)
+        nodes.push(node)
       } else {
         nodes.push({
           type: 'element',
-          value,
+          name,
           specificity: 1
         })
       }
 
-      s = s.slice(value.length + (isElm ? 0 : 1))
+      s = s.slice(name.length)
     }
   }
 

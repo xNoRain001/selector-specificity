@@ -62,47 +62,73 @@
       return ' ';
     })
     // div>span .foo +.bar.baz ~.qux a[quux=corge ]
-    .replace(/([[=~>+])\s/g, function (_, $1) {
+    .replace(/([,[=~>+])\s/g, function (_, $1) {
       return $1;
     })
     // div>span .foo+.bar.baz~.qux a[quux=corge]
-    .replace(/\s([=\]~>+])/g, function (_, $1) {
+    .replace(/\s(,[=\]~>+])/g, function (_, $1) {
       return $1;
     });
     var nodeStrategies = {
-      '.': function _(value) {
+      '.': function _(name) {
         return {
           type: 'class',
-          value: value,
+          name: name,
           specificity: 10
         };
       },
-      ':': function _(value) {
-        // TODO: :not ::first-line
-        return {
+      ':': function _(exp) {
+        if (exp[0] === ':') {
+          return {
+            type: 'pseudo-element',
+            name: exp.slice(1),
+            specificity: 0
+          };
+        }
+        var firstBracketIndex = exp.indexOf('(');
+        var name = exp.slice(0, firstBracketIndex);
+        var isNegationPseudoClass = name === 'not';
+        var specificity = isNegationPseudoClass ? 0 : 10;
+        var node = {
           type: 'pseudo-class',
-          value: value,
-          specificity: 10
+          name: name,
+          innerNodes: [],
+          specificity: specificity
         };
+        var segments = exp.slice(name.length + 1, -1).split(',');
+        for (var i = 0, l = segments.length; i < l; i++) {
+          var _nodes = getNodes(segments[i]);
+          node.innerNodes.push(_nodes);
+          if (isNegationPseudoClass) {
+            for (var _i = 0, _l = _nodes.length; _i < _l; _i++) {
+              specificity = Math.max(specificity, _nodes[_i].specificity);
+            }
+          }
+          node.specificity = specificity;
+        }
+        return node;
       },
       '[': function _(pair) {
         var _pair$slice$split = pair.slice(0, -1).split('='),
           _pair$slice$split2 = _slicedToArray(_pair$slice$split, 2),
-          attr = _pair$slice$split2[0],
+          name = _pair$slice$split2[0],
           value = _pair$slice$split2[1];
         return {
           type: 'attribute',
-          attr: attr,
+          name: name,
           value: value,
           specificity: 10
         };
       },
-      '#': function _(value) {
+      '#': function _(name) {
         return {
           type: 'id',
-          value: value,
+          name: name,
           specificity: 100
         };
+      },
+      ',': function _() {
+        return '';
       },
       '*': function _() {
         return {
@@ -130,37 +156,61 @@
         };
       }
     };
-    var getSelectorValue = function getSelectorValue(s, isElm, isPseudoClass) {
-      var value = '';
-      var startIndex = isElm ? 0 : 1;
-      for (var i = startIndex, l = s.length; i < l; i++) {
-        if (/[:*.>+~\s\[]/.test(s[i])) {
-          value = s.slice(startIndex, i);
+    var getSelectorname = function getSelectorname(s, isPseudoClass) {
+      if (isPseudoClass) {
+        if (s[0] === ':') {
+          return s;
+        }
+        var firstBracketIndex = s.indexOf('(');
+        var counter = 1;
+        var lastBracketIndex = 0;
+        for (var i = firstBracketIndex + 1, l = s.length; i < l; i++) {
+          if (s[i] === '(') {
+            counter++;
+          } else if (s[i] === ')') {
+            counter--;
+          }
+          if (counter === 0) {
+            lastBracketIndex = i;
+            break;
+          }
+        }
+        return s.slice(0, lastBracketIndex + 1);
+      }
+      var name = '';
+      var regexp = /[,:*.>+~\s\[]/;
+      for (var _i2 = 0, _l2 = s.length; _i2 < _l2; _i2++) {
+        if (regexp.test(s[_i2])) {
+          name = s.slice(0, _i2);
           break;
         }
       }
-      return value || s.slice(startIndex);
+      return name || s.slice(0);
     };
     var nodes = [];
     while (s) {
       var prefix = s[0];
-      if (/[*>+~\s]/.test(prefix)) {
-        nodes.push(nodeStrategies[prefix]());
+      if (/[,*>+~\s]/.test(prefix)) {
+        var node = nodeStrategies[prefix]();
+        node && nodes.push(node);
         s = s.slice(1);
       } else {
         var strategy = nodeStrategies[prefix];
         var isElm = /[.:#\[]/.test(prefix) ? false : true;
-        var value = getSelectorValue(s, isElm);
+        s = s.slice(isElm ? 0 : 1);
+        var isPseudoClass = prefix === ':';
+        var name = getSelectorname(s, isPseudoClass);
         if (strategy) {
-          nodes.push(strategy(value));
+          var _node = strategy(name);
+          nodes.push(_node);
         } else {
           nodes.push({
             type: 'element',
-            value: value,
+            name: name,
             specificity: 1
           });
         }
-        s = s.slice(value.length + (isElm ? 0 : 1));
+        s = s.slice(name.length);
       }
     }
     return nodes;
