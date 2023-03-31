@@ -6,7 +6,7 @@ const getNodes = s => {
         // div>span .foo +.bar.baz ~.qux a[quux=corge ]
         .replace(/([,[=~>+])\s/g, (_, $1) => $1)
         // div>span .foo+.bar.baz~.qux a[quux=corge]
-        .replace(/\s(,[=\]~>+])/g, (_, $1) => $1)
+        .replace(/\s([,=\[\]~>+])/g, (_, $1) => $1)
 
   const nodeStrategies = {
     '.': (name) => ({
@@ -31,22 +31,30 @@ const getNodes = s => {
       const node = {
         type: 'pseudo-class',
         name,
-        innerNodes: [],
         specificity
       }
       const segments = exp.slice(name.length + 1, -1).split(',')
       
-      for (let i = 0, l = segments.length; i < l; i++) {
-        const nodes = getNodes(segments[i])
-        node.innerNodes.push(nodes)
+      if (/^not|is|where$/.test(name)) {
+        const innerNodes = node.innerNodes = []
+        for (let i = 0, l = segments.length; i < l; i++) {
+          const _innerNodes = getNodes(segments[i])
+          Array.prototype.push.apply(innerNodes, _innerNodes)
 
-        if (isNegationPseudoClass) {
-          for (let i = 0, l = nodes.length; i < l; i++) {
-           specificity = Math.max(specificity, nodes[i].specificity)
-          }
-        } 
+          for (let i = 0, l = _innerNodes.length; i < l; i++) {
+            const innerNode = _innerNodes[i]
 
-        node.specificity = specificity
+            if (isNegationPseudoClass) {
+              specificity = Math.max(specificity, innerNode.specificity)
+            } 
+
+            delete innerNode.specificity
+           }
+  
+          node.specificity = specificity
+        }
+      } else {
+        node.value = segments[0]
       }
       
       return node

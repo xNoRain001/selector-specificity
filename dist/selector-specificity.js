@@ -66,7 +66,7 @@
       return $1;
     })
     // div>span .foo+.bar.baz~.qux a[quux=corge]
-    .replace(/\s(,[=\]~>+])/g, function (_, $1) {
+    .replace(/\s([,=\[\]~>+])/g, function (_, $1) {
       return $1;
     });
     var nodeStrategies = {
@@ -92,19 +92,25 @@
         var node = {
           type: 'pseudo-class',
           name: name,
-          innerNodes: [],
           specificity: specificity
         };
         var segments = exp.slice(name.length + 1, -1).split(',');
-        for (var i = 0, l = segments.length; i < l; i++) {
-          var _nodes = getNodes(segments[i]);
-          node.innerNodes.push(_nodes);
-          if (isNegationPseudoClass) {
-            for (var _i = 0, _l = _nodes.length; _i < _l; _i++) {
-              specificity = Math.max(specificity, _nodes[_i].specificity);
+        if (/^not|is|where$/.test(name)) {
+          var innerNodes = node.innerNodes = [];
+          for (var i = 0, l = segments.length; i < l; i++) {
+            var _innerNodes = getNodes(segments[i]);
+            Array.prototype.push.apply(innerNodes, _innerNodes);
+            for (var _i = 0, _l = _innerNodes.length; _i < _l; _i++) {
+              var innerNode = _innerNodes[_i];
+              if (isNegationPseudoClass) {
+                specificity = Math.max(specificity, innerNode.specificity);
+              }
+              delete innerNode.specificity;
             }
+            node.specificity = specificity;
           }
-          node.specificity = specificity;
+        } else {
+          node.value = segments[0];
         }
         return node;
       },
