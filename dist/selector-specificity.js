@@ -86,7 +86,7 @@
           };
         }
         var firstBracketIndex = exp.indexOf('(');
-        var name = exp.slice(0, firstBracketIndex);
+        var name = firstBracketIndex === -1 ? exp : exp.slice(0, firstBracketIndex);
         var isNegationPseudoClass = name === 'not';
         var specificity = isNegationPseudoClass ? 0 : 10;
         var node = {
@@ -94,23 +94,25 @@
           name: name,
           specificity: specificity
         };
-        var segments = exp.slice(name.length + 1, -1).split(',');
-        if (/^not|is|where$/.test(name)) {
-          var innerNodes = node.innerNodes = [];
-          for (var i = 0, l = segments.length; i < l; i++) {
-            var _innerNodes = getNodes(segments[i]);
-            Array.prototype.push.apply(innerNodes, _innerNodes);
-            for (var _i = 0, _l = _innerNodes.length; _i < _l; _i++) {
-              var innerNode = _innerNodes[_i];
-              if (isNegationPseudoClass) {
-                specificity = Math.max(specificity, innerNode.specificity);
+        if (firstBracketIndex !== -1) {
+          var segments = exp.slice(name.length + 1, -1).split(',');
+          if (/^not|is|where$/.test(name)) {
+            var innerNodes = node.innerNodes = [];
+            for (var i = 0, l = segments.length; i < l; i++) {
+              var _innerNodes = getNodes(segments[i]);
+              Array.prototype.push.apply(innerNodes, _innerNodes);
+              for (var _i = 0, _l = _innerNodes.length; _i < _l; _i++) {
+                var innerNode = _innerNodes[_i];
+                if (isNegationPseudoClass) {
+                  specificity = Math.max(specificity, innerNode.specificity);
+                }
+                delete innerNode.specificity;
               }
-              delete innerNode.specificity;
+              node.specificity = specificity;
             }
-            node.specificity = specificity;
+          } else {
+            node.value = segments[0];
           }
-        } else {
-          node.value = segments[0];
         }
         return node;
       },
@@ -164,10 +166,18 @@
     };
     var getSelectorname = function getSelectorname(s, isPseudoClass) {
       if (isPseudoClass) {
+        // pseudo element
         if (s[0] === ':') {
-          return s;
+          return ":".concat(getSelectorname(s.slice(1), false));
         }
         var firstBracketIndex = s.indexOf('(');
+
+        // :first-of-type...
+        if (firstBracketIndex === -1) {
+          return getSelectorname(s, false);
+        }
+
+        // :not()...
         var counter = 1;
         var lastBracketIndex = 0;
         for (var i = firstBracketIndex + 1, l = s.length; i < l; i++) {

@@ -25,7 +25,9 @@ const getNodes = s => {
       }
 
       const firstBracketIndex = exp.indexOf('(')
-      const name = exp.slice(0, firstBracketIndex)
+      const name = firstBracketIndex === -1
+        ? exp
+        : exp.slice(0, firstBracketIndex)
       const isNegationPseudoClass = name === 'not'
       let specificity = isNegationPseudoClass ? 0 : 10
       const node = {
@@ -33,28 +35,31 @@ const getNodes = s => {
         name,
         specificity
       }
-      const segments = exp.slice(name.length + 1, -1).split(',')
+
+      if (firstBracketIndex !== -1) {
+        const segments = exp.slice(name.length + 1, -1).split(',')
       
-      if (/^not|is|where$/.test(name)) {
-        const innerNodes = node.innerNodes = []
-        for (let i = 0, l = segments.length; i < l; i++) {
-          const _innerNodes = getNodes(segments[i])
-          Array.prototype.push.apply(innerNodes, _innerNodes)
+        if (/^not|is|where$/.test(name)) {
+          const innerNodes = node.innerNodes = []
+          for (let i = 0, l = segments.length; i < l; i++) {
+            const _innerNodes = getNodes(segments[i])
+            Array.prototype.push.apply(innerNodes, _innerNodes)
 
-          for (let i = 0, l = _innerNodes.length; i < l; i++) {
-            const innerNode = _innerNodes[i]
+            for (let i = 0, l = _innerNodes.length; i < l; i++) {
+              const innerNode = _innerNodes[i]
 
-            if (isNegationPseudoClass) {
-              specificity = Math.max(specificity, innerNode.specificity)
-            } 
+              if (isNegationPseudoClass) {
+                specificity = Math.max(specificity, innerNode.specificity)
+              } 
 
-            delete innerNode.specificity
-           }
-  
-          node.specificity = specificity
+              delete innerNode.specificity
+            }
+    
+            node.specificity = specificity
+          }
+        } else {
+          node.value = segments[0]
         }
-      } else {
-        node.value = segments[0]
       }
       
       return node
@@ -92,11 +97,19 @@ const getNodes = s => {
 
   const getSelectorname = (s, isPseudoClass) => {
     if (isPseudoClass) {
+      // pseudo element
       if (s[0] === ':') {
-        return s
+        return `:${ getSelectorname(s.slice(1), false) }`
       }
 
       const firstBracketIndex = s.indexOf('(')
+
+      // :first-of-type...
+      if (firstBracketIndex === -1) {
+        return getSelectorname(s, false)
+      }
+
+      // :not()...
       let counter = 1
       let lastBracketIndex = 0
 
@@ -127,6 +140,7 @@ const getNodes = s => {
         break
       }
     }
+
 
     return name || s.slice(0)
   }
