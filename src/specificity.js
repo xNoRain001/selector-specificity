@@ -4,8 +4,9 @@ const sepecificityMap = {
   child: 0,
   sibling: 0,
   descendant: 0,
-  'pseudo-class': 0,
-  'pseudo-element': 0,
+  'pseudo-element': 1,
+  element: 1,
+  'pseudo-class': 10,
   attribute: 10,
   class: 10,
   id: 100

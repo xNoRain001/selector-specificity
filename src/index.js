@@ -20,7 +20,7 @@ const getNodes = s => {
         return {
           type: 'pseudo-element',
           name: exp.slice(1),
-          specificity: 0
+          specificity: 1
         }
       }
 
