@@ -48,4 +48,8 @@ specificity.getNodes(s)
 // ]
 
 specificity.getSpecificity(s) // -> 73
+
+specificity.compare('#foo', 'div') // -> 1
+specificity.compare('div', 'span') // -> 0
+specificity.compare('div', '#foo') // -> -1
 ```
