@@ -231,6 +231,7 @@
     }
     return nodes;
   };
+
   var getSpecificity = function getSpecificity(s) {
     var res = 0;
     var nodes = getNodes(s);
@@ -239,11 +240,13 @@
     }
     return res;
   };
+
   var compare = function compare(s1, s2) {
     var res1 = getSpecificity(s1);
     var res2 = getSpecificity(s2);
     return res1 > res2 ? 1 : res1 === res2 ? 0 : -1;
   };
+
   var specificity = {
     compare: compare,
     getNodes: getNodes,
