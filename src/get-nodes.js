@@ -82,7 +82,7 @@ const getNodes = s => {
       specificity: 100
     }),
 
-    ',': () => '',
+    ',': () => ({ type: 'combine' }),
 
     '*': () => ({ type: 'universal'} ),
 

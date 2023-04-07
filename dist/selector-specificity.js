@@ -136,7 +136,9 @@
         };
       },
       ',': function _() {
-        return '';
+        return {
+          type: 'combine'
+        };
       },
       '*': function _() {
         return {
