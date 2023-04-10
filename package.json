@@ -1,6 +1,6 @@
 {
   "name": "selector-specificity",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Css selector specificity.",
   "main": "./dist/selector-specificity.js",
   "keywords": [
